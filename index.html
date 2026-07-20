@@ -43,11 +43,53 @@
 
   /* ---------- Ticker tape ---------- */
   .ticker-wrap{
-    overflow: hidden;
     border-bottom: 1px solid var(--hairline);
     background: var(--bg-deep);
-    white-space: nowrap;
     padding: 9px 0;
+    display: flex;
+    align-items: center;
+  }
+  .live-badge{
+    position: relative;
+    z-index: 2;
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    color: var(--paper-dim);
+    padding: 0 14px;
+    border-right: 1px solid var(--hairline);
+    margin-right: 14px;
+    background: var(--bg-deep);
+    white-space: nowrap;
+  }
+  .live-dot{
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--paper-dim);
+  }
+  .live-dot.ok{
+    background: var(--gain);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+  .live-dot.error{
+    background: var(--loss);
+  }
+  @keyframes pulse-dot{
+    0%, 100%{ opacity: 1; }
+    50%{ opacity: 0.35; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .live-dot.ok{ animation: none; }
+  }
+  .ticker-viewport{
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
   }
   .ticker{
     display: inline-block;
@@ -377,7 +419,12 @@
 <body>
 
   <div class="ticker-wrap">
-    <div class="ticker" id="tickerTrack"></div>
+    <div class="live-badge" title="BTC, ETH e SOL ao vivo via CoinGecko — atualiza a cada 15 min">
+      <span class="live-dot" id="liveDot"></span>AO VIVO
+    </div>
+    <div class="ticker-viewport">
+      <div class="ticker" id="tickerTrack"></div>
+    </div>
   </div>
 
   <header>
@@ -842,18 +889,59 @@
   }
   [c4valor, c4periodo, c4cdb, c4lci, c4ipca].forEach(el => el.addEventListener('input', calc4));
 
-  // ---- Ticker tape (decorativo — valores ilustrativos, não são cotações ao vivo) ----
-  const tickers = [
-    ['BTC', '+2,34%', 'up'], ['ETH', '-1,12%', 'down'], ['SOL', '+4,87%', 'up'],
+  // ---- Ticker tape: BTC/ETH/SOL ao vivo (CoinGecko), índices seguem ilustrativos ----
+  const track = document.getElementById('tickerTrack');
+  const liveDot = document.getElementById('liveDot');
+
+  const INDICES_ILUSTRATIVOS = [
     ['IBOV', '+0,58%', 'up'], ['NASDAQ', '+0,91%', 'up'], ['NYSE', '-0,22%', 'down'],
     ['S&P 500', '+0,45%', 'up'], ['DOW JONES', '-0,18%', 'down'], ['FTSE 100', '+0,33%', 'up'],
     ['NIKKEI 225', '+1,05%', 'up'], ['DAX', '-0,41%', 'down']
   ];
-  const track = document.getElementById('tickerTrack');
-  const seq = [...tickers, ...tickers].map(([n,p,d]) =>
-    `<span class="${d}">${n} ${p}</span>`
-  ).join('');
-  track.innerHTML = seq;
+
+  let cryptoAoVivo = [
+    ['BTC', 'carregando…', 'up'], ['ETH', 'carregando…', 'up'], ['SOL', 'carregando…', 'up']
+  ];
+
+  function renderTicker(){
+    const todos = [...cryptoAoVivo, ...INDICES_ILUSTRATIVOS];
+    const seq = [...todos, ...todos].map(([n,p,d]) =>
+      `<span class="${d}">${n} ${p}</span>`
+    ).join('');
+    track.innerHTML = seq;
+  }
+  renderTicker();
+
+  async function atualizarCotacoesCripto(){
+    try{
+      const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=brl&include_24hr_change=true');
+      if(!res.ok) throw new Error('Falha na resposta da API');
+      const data = await res.json();
+
+      const montarItem = (sigla, obj) => {
+        const preco = obj.brl.toLocaleString('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits: obj.brl >= 100 ? 0 : 2 });
+        const variacao = obj.brl_24h_change;
+        const dir = variacao >= 0 ? 'up' : 'down';
+        const variacaoStr = (variacao >= 0 ? '+' : '') + variacao.toLocaleString('pt-BR', { minimumFractionDigits:2, maximumFractionDigits:2 }) + '%';
+        return [sigla, `${preco} · ${variacaoStr}`, dir];
+      };
+
+      cryptoAoVivo = [
+        montarItem('BTC', data.bitcoin),
+        montarItem('ETH', data.ethereum),
+        montarItem('SOL', data.solana)
+      ];
+      if(liveDot) liveDot.classList.add('ok');
+    } catch(err){
+      console.error('Não foi possível atualizar as cotações de cripto:', err);
+      if(liveDot) liveDot.classList.add('error');
+    } finally {
+      renderTicker();
+    }
+  }
+
+  atualizarCotacoesCripto();
+  setInterval(atualizarCotacoesCripto, 15 * 60 * 1000); // atualiza a cada 15 minutos
 
   // inicializa com zeros formatados
   calc1();

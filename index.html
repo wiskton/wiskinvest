@@ -914,13 +914,13 @@
 
   async function atualizarCotacoesCripto(){
     try{
-      const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=brl&include_24hr_change=true');
+      const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true');
       if(!res.ok) throw new Error('Falha na resposta da API');
       const data = await res.json();
 
       const montarItem = (sigla, obj) => {
-        const preco = obj.brl.toLocaleString('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits: obj.brl >= 100 ? 0 : 2 });
-        const variacao = obj.brl_24h_change;
+        const preco = obj.usd.toLocaleString('en-US', { style:'currency', currency:'USD', maximumFractionDigits: obj.usd >= 100 ? 0 : 2 });
+        const variacao = obj.usd_24h_change;
         const dir = variacao >= 0 ? 'up' : 'down';
         const variacaoStr = (variacao >= 0 ? '+' : '') + variacao.toLocaleString('pt-BR', { minimumFractionDigits:2, maximumFractionDigits:2 }) + '%';
         return [sigla, `${preco} · ${variacaoStr}`, dir];
